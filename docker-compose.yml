@@ -1,0 +1,30 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_CONNECTION_STRING=postgres://bootandgo:bootandgo@postgres:5432/fleet?sslmode=disable
+      - JWT_SECRET=supersecretkey
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=bootandgo
+      - POSTGRES_PASSWORD=bootandgo
+      - POSTGRES_DB=fleet
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bootandgo -d fleet"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
