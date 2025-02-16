@@ -5,9 +5,9 @@ import (
 )
 
 type Server struct {
-	ID           string
-	SerialNumber string
-	IPAddress    string
-	Status       string // "pending", "approved"
-	CreatedAt    time.Time
+	ID           string    `db:"id"`
+	SerialNumber string    `db:"serial_number"`
+	IPAddress    string    `db:"ip_address"`
+	Status       string    `db:"status"` // "pending", "approved"
+	CreatedAt    time.Time `db:"created_at"`
 }

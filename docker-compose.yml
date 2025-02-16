@@ -6,6 +6,8 @@ services:
     environment:
       - DB_CONNECTION_STRING=postgres://bootandgo:bootandgo@postgres:5432/fleet?sslmode=disable
       - JWT_SECRET=supersecretkey
+      - ROOT_USERNAME=admin
+      - ROOT_PASSWORD=admin
     depends_on:
       postgres:
         condition: service_healthy

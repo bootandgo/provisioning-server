@@ -5,7 +5,8 @@ import (
 )
 
 type Admin struct {
-	Username  string
-	Password  string // hashed
-	CreatedAt time.Time
+	Username  string    `db:"username"`
+	Password  string    `db:"password"`
+	IsRoot    bool      `db:"is_root"`
+	CreatedAt time.Time `db:"created_at"`
 }

@@ -23,13 +23,65 @@ func NewPostgresStore(connString string) (*PostgresStore, error) {
 	return &PostgresStore{db: db}, nil
 }
 
+// TODO: change this to ORM or similar as adding new fields to the models require multiple changes to queries in many places
+
+/*
+ * Invitation
+ */
+func (s *PostgresStore) CreateInvitation(invite *models.Invitation) error {
+	query := `
+		INSERT INTO invitations (token, created_by, created_at, expires_at, used)
+		VALUES ($1, $2, $3, $4, $5)`
+
+	_, err := s.db.Exec(query, invite.Token, invite.CreatedBy, invite.CreatedAt, invite.ExpiresAt, invite.Used)
+	if err != nil {
+		return fmt.Errorf("create invitation error: %w", err)
+	}
+	return nil
+}
+
+func (s *PostgresStore) GetInvitation(token string) (*models.Invitation, error) {
+	query := `SELECT token, created_by, created_at, expires_at, used FROM invitations WHERE token = $1`
+	var invitation models.Invitation
+	err := s.db.Get(&invitation, query, token)
+	if err != nil {
+		return nil, err
+	}
+
+	return &invitation, nil
+}
+
+func (s *PostgresStore) MarkInvitationUsed(token string) error {
+	query := `UPDATE invitations SET used = true WHERE token = $1`
+	_, err := s.db.Exec(query, token)
+	if err != nil {
+		return fmt.Errorf("mark invitation used error: %w", err)
+	}
+
+	return nil
+}
+
+/*
+ * Administrator
+ */
+func (s *PostgresStore) GetRootAdmin() (*models.Admin, error) {
+	query := `SELECT username, password, created_at FROM admins WHERE is_root = true`
+	var admin models.Admin
+	err := s.db.Get(&admin, query)
+	if err != nil {
+		return nil, err
+	}
+
+	return &admin, nil
+}
+
 func (s *PostgresStore) CreateAdmin(admin *models.Admin) error {
 	query := `
-		INSERT INTO admins (username, password, created_at)
-		VALUES ($1, $2, $3)
+		INSERT INTO admins (username, password, created_at, is_root)
+		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (username) DO NOTHING`
 
-	_, err := s.db.Exec(query, admin.Username, admin.Password, admin.CreatedAt)
+	_, err := s.db.Exec(query, admin.Username, admin.Password, admin.CreatedAt, admin.IsRoot)
 	if err != nil {
 		return fmt.Errorf("create admin error: %w", err)
 	}
@@ -38,7 +90,7 @@ func (s *PostgresStore) CreateAdmin(admin *models.Admin) error {
 
 func (s *PostgresStore) FindAdminByUsername(username string) (*models.Admin, error) {
 	var admin models.Admin
-	query := `SELECT username, password, created_at FROM admins WHERE username = $1`
+	query := `SELECT username, password, created_at, is_root FROM admins WHERE username = $1`
 	err := s.db.Get(&admin, query, username)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -49,6 +101,9 @@ func (s *PostgresStore) FindAdminByUsername(username string) (*models.Admin, err
 	return &admin, nil
 }
 
+/*
+ * Server
+ */
 func (s *PostgresStore) CreateServer(server *models.Server) error {
 	query := `
 		INSERT INTO servers (id, serial_number, ip_address, status, created_at)
@@ -111,9 +166,34 @@ func (s *PostgresStore) FindServerBySerialNumber(serialNumber string) (*models.S
 	if err != nil {
 		return nil, err
 	}
+
 	return server, nil
 }
 
+func (s *PostgresStore) GetServerByID(serverID string) (*models.Server, error) {
+	server := &models.Server{}
+	row := s.db.QueryRow(
+		`SELECT id, serial_number, ip_address, status, created_at
+		 FROM servers WHERE id = $1`,
+		serverID,
+	)
+
+	err := row.Scan(&server.ID, &server.SerialNumber, &server.IPAddress,
+		&server.Status, &server.CreatedAt)
+
+	if err == sql.ErrNoRows {
+		return nil, ErrServerNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return server, nil
+}
+
+/*
+ * Misc
+ */
 func (s *PostgresStore) Ping(ctx context.Context) error {
 	return s.db.PingContext(ctx)
 }

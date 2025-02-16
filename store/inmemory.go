@@ -1,25 +1,32 @@
 package store
 
 import (
+	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"provisioning-server/models"
 )
 
 type InMemoryStore struct {
-	admins  map[string]*models.Admin
-	servers map[string]*models.Server
-	mu      sync.RWMutex
+	admins      map[string]*models.Admin
+	servers     map[string]*models.Server
+	invitations map[string]*models.Invitation
+	mu          sync.RWMutex
 }
 
 func NewInMemoryStore() *InMemoryStore {
 	return &InMemoryStore{
-		admins:  make(map[string]*models.Admin),
-		servers: make(map[string]*models.Server),
+		admins:      make(map[string]*models.Admin),
+		servers:     make(map[string]*models.Server),
+		invitations: make(map[string]*models.Invitation),
 	}
 }
 
+/*
+ * Administrator
+ */
 func (s *InMemoryStore) CreateAdmin(admin *models.Admin) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -40,6 +47,21 @@ func (s *InMemoryStore) FindAdminByUsername(username string) (*models.Admin, err
 	return admin, nil
 }
 
+func (s *InMemoryStore) GetRootAdmin() (*models.Admin, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, admin := range s.admins {
+		if admin.IsRoot {
+			return admin, nil
+		}
+	}
+	return nil, errors.New("root admin not found")
+}
+
+/*
+ * Server
+ */
 func (s *InMemoryStore) CreateServer(server *models.Server) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -81,4 +103,55 @@ func (s *InMemoryStore) FindServerBySerialNumber(serialNumber string) (*models.S
 		}
 	}
 	return nil, ErrServerNotFound
+}
+
+func (s *InMemoryStore) GetServerByID(serverID string) (*models.Server, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	server, exists := s.servers[serverID]
+	if !exists {
+		return nil, ErrServerNotFound
+	}
+
+	return server, nil
+}
+
+/*
+ * Invitation
+ */
+func (s *InMemoryStore) CreateInvitation(invite *models.Invitation) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.invitations[invite.Token]; exists {
+		return ErrInvitationExists
+	}
+
+	s.invitations[invite.Token] = invite
+	return nil
+}
+
+func (s *InMemoryStore) GetInvitation(token string) (*models.Invitation, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	invite, exists := s.invitations[token]
+	if !exists || invite.Used || time.Now().After(invite.ExpiresAt) {
+		return nil, ErrInvalidInvitation
+	}
+	return invite, nil
+}
+
+func (s *InMemoryStore) MarkInvitationUsed(token string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	invite, exists := s.invitations[token]
+	if !exists {
+		return ErrInvalidInvitation
+	}
+
+	invite.Used = true
+	return nil
 }

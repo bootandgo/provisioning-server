@@ -84,3 +84,17 @@ func ApproveServerHandler(store storepkg.Store) gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{"message": "server approved"})
 	}
 }
+
+func ServerStatusHandler(store storepkg.Store) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		serverID := c.Param("id")
+
+		server, err := store.GetServerByID(serverID)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "server not found"})
+			return
+		}
+
+		c.JSON(http.StatusOK, server)
+	}
+}
